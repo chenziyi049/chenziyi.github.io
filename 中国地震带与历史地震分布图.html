@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>中国地震带与历史地震分布图</title>
+  <style>
+    /* 基础布局 */
+    html, body, #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+    #container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* 页眉样式 */
+    #header {
+      height: 80px;
+      background-color: #2c3e50;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      position: relative;
+    }
+    .header-logo {
+      height: 60px;
+      width: auto;
+      margin-right: 20px;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+    .header-title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+    }
+
+    /* 地图容器 */
+    #mainContent { display: flex; flex: 1; }
+    #mapArea { flex: 3; position: relative; }
+    #basemapGalleryArea {
+      flex: 1;
+      background-color: #f5f5f5;
+      padding: 10px;
+      overflow-y: auto;
+    }
+
+    /* 半透明图例容器 */
+    .legend-container {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      transform: scale(0.666);
+      transform-origin: left bottom;
+      width: 360px;
+      max-height: 60vh;
+      overflow: hidden;
+      backdrop-filter: blur(2px);
+      z-index: 100;
+    }
+    .legend-wrapper {
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      background: transparent !important;
+    }
+    .esri-legend { margin-bottom: 15px !important; }
+    .esri-layer-list { max-height: 200px; overflow-y: auto; }
+
+    /* 新增组件标题样式 */
+    .widget-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2c3e50;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.8);
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+      margin: 0 -12px;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      backdrop-filter: blur(2px);
+    }
+  </style>
+  
+  <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.28/"></script>
+  
+  <script>
+    require([
+      "esri/Map", "esri/views/MapView", "esri/layers/FeatureLayer",
+      "esri/widgets/Legend", "esri/widgets/ScaleBar", "esri/widgets/Search",
+      "esri/widgets/LayerList", "esri/widgets/BasemapGallery"
+    ], function(Map, MapView, FeatureLayer, Legend, ScaleBar, Search, LayerList, BasemapGallery) {
+      
+      // 初始化地图
+      const map = new Map({ basemap: "streets-navigation-vector" });
+
+      // 添加地震带图层
+      const seismicZoneLayer = new FeatureLayer({
+        url: "https://www.geosceneonline.cn/server/rest/services/Hosted/中国_地震带_WFL1/FeatureServer",
+        title: "地震带分布",
+        opacity: 0.7
+      });
+
+      // 历史地震数据图层
+      const earthquakeDataLayer = new FeatureLayer({
+        url: "https://www.geosceneonline.cn/server/rest/services/Hosted/22_24中国地震数据/FeatureServer",
+        title: "历史地震点",
+        outFields: ["*"],
+        popupTemplate: {
+          title: "地震信息 - {参考位置}",
+          content: [{
+            type: "fields",
+            fieldInfos: [
+              { 
+                fieldName: "参考位置",
+                label: "参考位置"
+              },
+              { 
+                fieldName: "震级_m_",    // 根据字段截图修正
+                label: "震级（M）",
+                format: {
+                  digitSeparator: true,
+                  places: 1
+                }
+              },
+              { 
+                fieldName: "发震时刻",
+                label: "发震时刻",
+                format: {
+                  dateFormat: "short-date-short-time",
+                  timeZone: "Asia/Shanghai"
+                }
+              },
+              { 
+                fieldName: "深度_千米_",
+                label: "深度",
+                format: {
+                  digitSeparator: true,
+                  places: 0,
+                  suffix: " 千米"
+                }
+              }
+            ]
+          }]
+        }
+      });
+
+      // 图层叠加顺序
+      map.add(seismicZoneLayer);
+      map.add(earthquakeDataLayer);
+
+      // 地图视图配置
+      const view = new MapView({
+        container: "mapArea",
+        map: map,
+        center: [104.1954, 35.8617],
+        zoom: 3
+      });
+
+      // 比例尺控件
+      const scaleBar = new ScaleBar({ view: view, unit: "metric" });
+      view.ui.add(scaleBar, { position: "bottom-right" });
+
+      // 自定义图例容器
+      const legendContainer = document.createElement("div");
+      legendContainer.className = "legend-container";
+      document.getElementById("mapArea").appendChild(legendContainer);
+
+      // 图例组件
+      const legend = new Legend({
+        view: view,
+        container: document.createElement("div"),
+        layerInfos: [{
+          layer: seismicZoneLayer,
+          title: "地震带"
+        }, {
+          layer: earthquakeDataLayer,
+          title: "历史地震点"
+        }]
+      });
+
+      // 图层列表
+      const layerList = new LayerList({
+        view: view,
+        container: document.createElement("div"),
+        listItemCreatedFunction: (event) => {
+          event.item.panel = { content: "legend", className: "esri-icon-layer-list" };
+        }
+      });
+
+      // 创建组件标题
+      const legendTitle = document.createElement("div");
+      legendTitle.className = "widget-title";
+      legendTitle.textContent = "图例";
+
+      const layerListTitle = document.createElement("div");
+      layerListTitle.className = "widget-title";
+      layerListTitle.textContent = "图层列表";
+
+      // 组件组合结构
+      const wrapper = document.createElement("div");
+      wrapper.className = "legend-wrapper";
+      
+      // 添加图例部分
+      wrapper.appendChild(legendTitle);
+      wrapper.appendChild(legend.container);
+
+      // 添加分隔线
+      const divider = document.createElement("hr");
+      divider.style.margin = "10px 0";
+      divider.style.borderColor = "rgba(0,0,0,0.1)";
+      wrapper.appendChild(divider);
+
+      // 添加图层列表
+      wrapper.appendChild(layerListTitle);
+      wrapper.appendChild(layerList.container);
+
+      legendContainer.appendChild(wrapper);
+
+      // 搜索控件
+      const searchWidget = new Search({ view: view });
+      view.ui.add(searchWidget, { position: "top-left", index: 0 });
+
+      // 底图库
+      const basemapGallery = new BasemapGallery({ view: view, container: "basemapGalleryArea" });
+
+      // 字段验证
+      view.whenLayerView(earthquakeDataLayer).then(layerView => {
+        earthquakeDataLayer.queryFeatures({
+          where: "1=1",
+          outFields: ["*"],
+          returnGeometry: false,
+          num: 1
+        }).then(results => {
+          console.log("字段验证结果：", results.features[0].attributes);
+        });
+      });
+
+      view.when(() => console.log("地图初始化完成"));
+    });
+  </script>
+</head>
+<body>
+  <div id="container">
+    <div id="header">
+      <img class="header-logo" 
+           src="https://pic4.zhimg.com/100/v2-8581ed3d93989a1082ace02f0cbe050b_qhd.jpg" 
+           alt="LOGO"
+           onerror="this.style.display='none'">
+      <div class="header-title">中国地震带与历史地震分布图</div>
+    </div>
+    <div id="mainContent">
+      <div id="mapArea"></div>
+      <div id="basemapGalleryArea">
+        <h3>底图切换</h3>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
